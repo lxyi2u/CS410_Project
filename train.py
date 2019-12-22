@@ -1,15 +1,35 @@
-from model import *
+from model import lstm
+from datautil import DataGenerator
+from keras.callbacks import ModelCheckpoint
+INPUT_LENGTH = 50
+INPUT_FEATURE = 136
+BATCH_SIZE = 32
+EPOCHS = 8
+FILEPATH = "./model/lstm.h5"
 
-INPUT_LENGTH=50
-INPUT_FEATURE=10
 
 def train():
 
-    model=get_lstm((INPUT_LENGTH,INPUT_FEATURE))
+    train_dataset = DataGenerator('./dataset/data.csv', 10, 50, 32, 'train')
+    test_dataset = DataGenerator('./dataset/data.csv', 10, 50, 32, 'test')
+    model = lstm((INPUT_LENGTH, INPUT_FEATURE))
+    # model=linear_regression((INTPUT_LENGTH,INPUT_FEATURE))
     model.summary()
+    model.compile(optimizer='adam', loss='mse')
 
+    checkpoint = ModelCheckpoint(FILEPATH, monitor='val_loss',
+                                 verbose=1, save_best_only=True, mode='min')
 
+    model.fit_generator(
+        train_dataset,
+        epochs=EPOCHS,
+        validation_data=test_dataset,
+        shuffle=True,
+        verbose=1,
+        callbacks=[checkpoint]
+    )
 
 
 if __name__ == "__main__":
+
     train()
