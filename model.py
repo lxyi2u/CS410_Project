@@ -11,7 +11,7 @@ def lstm(input_shape, dropout=0):
     model = Sequential()
     model.add(LSTM(128, input_shape=(input_length, input_feature),
                    return_sequences=False, dropout=dropout,
-                   recurrent_dropout=dropout))  # TODO: input_shape=(timesteps ,data_dim)
+                   recurrent_dropout=dropout))
     model.add(Dense(1))
 
     return model
@@ -23,14 +23,13 @@ def multilayer_lstm(input_shape, dropout):
     model = Sequential()
     model.add(LSTM(128, input_shape=(input_length, input_feature),
                    return_sequences=False, dropout=dropout,
-                   recurrent_dropout=dropout))  # TODO: input_shape=(timesteps ,data_dim)
+                   recurrent_dropout=dropout))
     model.add(LSTM(128, input_shape=(input_length, input_feature),
                    return_sequences=False, dropout=dropout,
-                   recurrent_dropout=dropout))  # TODO: input_shape=(timesteps ,data_dim)
+                   recurrent_dropout=dropout))
     model.add(LSTM(128, input_shape=(input_length, input_feature),
                    return_sequences=False, dropout=dropout,
-                   recurrent_dropout=dropout))  # TODO: input_shape=(timesteps ,data_dim)
-    model.add(Dense(1))
+                   recurrent_dropout=dropout))
 
     return model
 
