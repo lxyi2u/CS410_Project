@@ -1,6 +1,5 @@
-import tensorflow as tf
 from keras.models import Sequential
-from keras.layers import Activation, Dropout, Dense, LSTM, Reshape
+from keras.layers import Activation, Dense, LSTM, Reshape
 
 
 def lstm(input_shape, dropout=0):
