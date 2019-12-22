@@ -210,9 +210,10 @@ class DataGenerator(keras.utils.Sequence):
         self.price = self.df['midPrice']
         # print(self.price)
         self.label = []
-  
+
         for i in range(self.window_len, self.df_rows - self.predict_days):
-            self.label.append(self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
+            self.label.append(
+                self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
         self.label_max = max(self.label)
         self.label_min = min(self.label)
         self.label = [(l-self.label_min)/(self.label_max-self.label_min)
@@ -225,12 +226,13 @@ class DataGenerator(keras.utils.Sequence):
         print('label:', len(self.label))
 
     def __len__(self):
-        return np.ceil(self.num/self.batch_size).astype(np.int)
+        return np.floor(self.num/self.batch_size).astype(np.int)
 
     def __getitem__(self, idx):
         batch_x = []
         for i in range(idx*self.batch_size, (idx+1)*self.batch_size):
-            batch_x.append(self.feature_normal[self.begin+i:self.begin+i+self.window_len])
+            batch_x.append(
+                self.feature_normal[self.begin+i:self.begin+i+self.window_len])
 
         batch_x = np.array(batch_x)
         # print('batch_x:', batch_x.shape)

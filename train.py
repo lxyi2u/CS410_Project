@@ -4,8 +4,8 @@ from keras.callbacks import ModelCheckpoint
 import numpy as np
 INPUT_LENGTH = 50
 INPUT_FEATURE = 136
-BATCH_SIZE = 64
-EPOCHS = 8
+BATCH_SIZE = 128
+EPOCHS = 2
 COUNT = 1721577
 WINDOW_LEN = 50
 PREDICT_DAYS = 10
@@ -30,14 +30,15 @@ def train():
 
     model.fit_generator(
         train_dataset,
-        steps_per_epoch=np.ceil(TRAIN_NUM / BATCH_SIZE),
+        steps_per_epoch=np.floor(TRAIN_NUM / BATCH_SIZE)-5,
         epochs=EPOCHS,
         validation_data=test_dataset,
-        validation_steps=np.ceil(TEST_NUM / BATCH_SIZE),
+        validation_steps=np.floor(TEST_NUM / BATCH_SIZE)-5,
         shuffle=True,
         verbose=1,
         callbacks=[checkpoint]
     )
+    model.save(FILEPATH)
 
 
 if __name__ == "__main__":
