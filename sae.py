@@ -1,13 +1,17 @@
 from keras.models import Model
 from keras.layers import Dense, Input
 import keras
+from datautil import IdentityDataGenerator
+from keras.callbacks import ModelCheckpoint, EarlyStopping
+from log import LossHistory
+import numpy as np
 
-ENCODING_DIM_INPUT = 100
+ENCODING_DIM_INPUT = 136
 ENCODING_DIM_LAYER1 = 128
 ENCODING_DIM_LAYER2 = 64
 ENCODING_DIM_LAYER3 = 32
 ENCODING_DIM_OUTPUT = 16
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 EPOCHS = 8
 
 
@@ -57,13 +61,15 @@ def sae_v1(x_train):
     return sae
 
 
-def sae_v2(x_train):
+def sae_v2():
 
     # input placeholder
     input_image = Input(shape=(ENCODING_DIM_INPUT, ))
 
+    
     # encoding layer
-    encode_layer1 = Dense(ENCODING_DIM_LAYER1, activation='relu')(input_image)
+    encode_layer1 = Dense(ENCODING_DIM_LAYER1,
+                          activation='relu')(input_image)
     encode_layer2 = Dense(ENCODING_DIM_LAYER2,
                           activation='relu')(encode_layer1)
     encode_layer3 = Dense(ENCODING_DIM_LAYER3,
@@ -77,17 +83,45 @@ def sae_v2(x_train):
                           activation='relu')(decode_layer1)
     decode_layer3 = Dense(ENCODING_DIM_LAYER1,
                           activation='relu')(decode_layer2)
-    decode_output = Dense(ENCODING_DIM_INPUT, activation='tanh')(decode_layer3)
+    decode_output = Dense(ENCODING_DIM_INPUT,
+                          activation='tanh')(decode_layer3)
 
     # build autoencoder, encoder
     autoencoder = Model(inputs=input_image, outputs=decode_output)
     encoder = Model(inputs=input_image, outputs=encode_output)
 
+    checkpoint = ModelCheckpoint('./model/autoencoder.h5', monitor='val_loss',
+                                 verbose=1, save_best_only=True, mode='min')
+    earlystop = EarlyStopping(monitor='val_loss', patience=1,
+                              verbose=1, mode='auto')
+    history = LossHistory()
     # compile autoencoder
     autoencoder.compile(optimizer='adam', loss='mse')
 
-    # training
-    autoencoder.fit(x_train, x_train, epochs=EPOCHS,
-                    batch_size=BATCH_SIZE, shuffle=True)
+    train_dataset = IdentityDataGenerator(
+        './dataset/data.csv',  BATCH_SIZE, 'train')
+    val_dataset = IdentityDataGenerator(
+        './dataset/data.csv',  BATCH_SIZE, 'validate')
 
+    autoencoder.fit_generator(
+        train_dataset,
+        steps_per_epoch=np.floor(train_dataset.get_len() / BATCH_SIZE),
+        epochs=EPOCHS,
+        validation_data=val_dataset,
+        validation_steps=np.floor(val_dataset.get_len() / BATCH_SIZE),
+        shuffle=True,
+        verbose=1,
+        callbacks=[checkpoint, earlystop, history]
+    )
+
+    history.loss_plot('epoch', 'autoencoder')
+    history.loss_plot('batch', 'autoencoder')
+
+    encoder.save('./model/encoder.h5')
+    autoencoder.save('./model/autoencoder.h5')
     return encoder
+
+
+if __name__ == "__main__":
+
+    sae_v2()

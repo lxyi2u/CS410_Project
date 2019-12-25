@@ -1,21 +1,38 @@
 from keras.models import Sequential
-from keras.layers import Activation, Dense, LSTM, Reshape
+from keras.layers import Activation, Dense, LSTM, Reshape, Input
 from keras.models import Model
+from keras import backend as K
+from keras.layers.core import Lambda
 
 
-def model_cat(encoder, rnn):
+def preprocess_reshape(x):
+    return K.reshape(x, (-1, 136))
 
-    return Model(inputs=encoder.input, output=rnn.output)
+
+def backend_reshape(x):
+    return K.reshape(x, (-1, 50, 16))
 
 
-def lstm(input_shape, dropout=0):
+def model_cat(encoder, rnn, WINDOW_LEN,
+              ENCODING_DIM_INPUT, ENCODING_DIM_OUTPUT=16):
+
+    data = Input(shape=(WINDOW_LEN, ENCODING_DIM_INPUT, ))
+    x = Lambda(preprocess_reshape, output_shape=(ENCODING_DIM_INPUT,))(data)
+    x = encoder(x)
+    x = Lambda(backend_reshape, output_shape=(WINDOW_LEN, ENCODING_DIM_OUTPUT))(x)
+    out = rnn(x)
+
+    return Model(inputs=data, output=out)
+
+
+def lstm(input_shape, hidden_dim=128, dropout=0):
     '''
         input_shape=(input_length,input_feature)
     '''
 
     input_length, input_feature = input_shape
     model = Sequential()
-    model.add(LSTM(128, input_shape=(input_length, input_feature),
+    model.add(LSTM(hidden_dim, input_shape=(input_length, input_feature),
                    return_sequences=False, dropout=dropout,
                    recurrent_dropout=dropout))
     model.add(Dense(1))
@@ -23,20 +40,20 @@ def lstm(input_shape, dropout=0):
     return model
 
 
-def multilayer_lstm(input_shape, dropout):
+def multilayer_lstm(input_shape, dropout=0):
 
     input_length, input_feature = input_shape
     model = Sequential()
     model.add(LSTM(128, input_shape=(input_length, input_feature),
-                   return_sequences=False, dropout=dropout,
+                   return_sequences=True, dropout=dropout,
+                   recurrent_dropout=dropout))
+    model.add(LSTM(128, input_shape=(input_length, input_feature),
+                   return_sequences=True, dropout=dropout,
                    recurrent_dropout=dropout))
     model.add(LSTM(128, input_shape=(input_length, input_feature),
                    return_sequences=False, dropout=dropout,
                    recurrent_dropout=dropout))
-    model.add(LSTM(128, input_shape=(input_length, input_feature),
-                   return_sequences=False, dropout=dropout,
-                   recurrent_dropout=dropout))
-
+    model.add(Dense(1))
     return model
 
 
@@ -64,7 +81,7 @@ def nerual_network(input_shape):
 
 # class lstm_autoencoder():
 
-#     def __init__(self, label_dataset, unlabeled_dataset, 
+#     def __init__(self, label_dataset, unlabeled_dataset,
 #                       input_shape, dropout=0):
 
 #         self.label_dataset = label_dataset
