@@ -243,6 +243,42 @@ class DataGenerator(keras.utils.Sequence):
 
         return batch_x, batch_y
 
+class IdentityDataGenerator(keras.utils.Sequence):
+
+    def __init__(self, datafile, batch_size, dataset):
+        self.data = pd.read_csv(datafile)
+        count, _ = self.data.shape
+        print('count:', count)
+        if dataset == 'train':
+            self.df = self.data[:int(0.7 * count)]
+        else:
+            self.df = self.data[int(0.7*count):]
+
+        self.batch_size = batch_size
+
+        self.df_rows, self.df_cols = self.df.shape
+        self.num = self.df_rows
+
+        # normalize feature
+        self.feature = self.df.drop(
+            ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
+        self.feature_normal = maxmin_norm(self.feature.values)
+        print('num:', self.num)
+
+    def __len__(self):
+        return np.floor(self.num/self.batch_size).astype(np.int)
+
+    def __getitem__(self, idx):
+        batch = []
+        for i in range(idx*self.batch_size, (idx+1)*self.batch_size):
+            batch.append(
+                self.feature_normal[i])
+
+        batch = np.array(batch)
+        # print('batch_x:', batch_x.shape)
+
+        return batch, batch
+
 
 if __name__ == "__main__":
     DataGenerator('./dataset/data.csv', 10, 50, 32, 'test')
