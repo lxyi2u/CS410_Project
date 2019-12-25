@@ -90,4 +90,4 @@ def sae_v2(x_train):
     autoencoder.fit(x_train, x_train, epochs=EPOCHS,
                     batch_size=BATCH_SIZE, shuffle=True)
 
-    return encoder, autoencoder
+    return encoder
