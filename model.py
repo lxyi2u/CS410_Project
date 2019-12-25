@@ -1,5 +1,11 @@
 from keras.models import Sequential
 from keras.layers import Activation, Dense, LSTM, Reshape
+from keras.models import Model
+
+
+def model_cat(encoder, rnn):
+
+    return Model(inputs=encoder.input, output=rnn.output)
 
 
 def lstm(input_shape, dropout=0):
@@ -55,3 +61,64 @@ def nerual_network(input_shape):
     model.add(Dense(1))
 
     return model
+
+# class lstm_autoencoder():
+
+#     def __init__(self, label_dataset, unlabeled_dataset, 
+#                       input_shape, dropout=0):
+
+#         self.label_dataset = label_dataset
+#         self.unlabeled_dataset = unlabeled_dataset
+#         self.input_length, self.input_feature = input_shape
+#         self.dropout = dropout
+#         self.model = Sequential()
+#         self.model.add(
+#             LSTM(128, input_shape=(self.input_length, self.input_feature),
+#                  return_sequences=False, dropout=self.dropout,
+#                  recurrent_dropout=self.dropout))
+#         self.model.add(Dense(1))
+
+#         # encoding layer
+#         self.encode_layer1 = Dense(128, activation='relu')
+#         self.encode_layer2 = Dense(64, activation='relu')
+#         self.encode_layer3 = Dense(32, activation='relu')
+#         self.encode_output = Dense(16)
+
+#         # decoding layer
+#         self.decode_layer1 = Dense(32, activation='relu')
+#         self.decode_layer2 = Dense(64, activation='relu')
+#         self.decode_layer3 = Dense(128, activation='relu')
+#         self.decode_output = Dense(self.input_feature, activation='tanh')
+
+#     def unsupervise_train(self):
+
+#         # input placeholder
+#         input_feature = Input(shape=(self.input_feature, ))
+
+#         # encoding layer
+#         out = self.encode_layer1(input_feature)
+#         out = self.encode_layer2(out)
+#         out = self.encode_layer3(out)
+#         encode_feature = self.encode_output(out)
+
+#         # decoding layer
+#         out = self.decode_layer1(encode_feature)
+#         out = self.decode_layer2(out)
+#         out = self.decode_layer3(out)
+#         decode_feature = self.decode_output(out)
+
+#         autoencoder = Model(inputs=input_feature, outputs=decode_feature)
+#         encoder = Model(inputs=input_feature, outputs=encode_feature)
+
+#         # compile autoencoder
+#         autoencoder.compile(optimizer='adam', loss='mse')
+
+#         # training
+#         autoencoder.fit(
+#             self.unlabeled_dataset,
+#             steps_per_epoch=np.floor(TRAIN_NUM / BATCH_SIZE)-5,
+#             epochs=EPOCHS,
+#             shuffle=True,
+#             verbose=1,
+#             # callbacks=[checkpoint]
+#         )
