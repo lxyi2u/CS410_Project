@@ -192,12 +192,15 @@ class DataGenerator(keras.utils.Sequence):
         count, _ = self.data.shape
         print('count:', count)
         if dataset == 'train':
-            self.df = self.data[:int(0.7 * count)]
-            # self.df=self.df[:10000]
+            self.df = self.data[:int(0.6 * count)]
             self.begin = 0
-        else:
+        elif dataset == 'test':
             self.df = self.data[int(0.7*count):]
             self.begin = int(0.7*count)
+        elif dataset == 'validate':
+            self.df = self.data[int(0.6*count):int(0.7*count)]
+            self.begin = int(0.6*count)
+
         self.predict_days = predict_days
         self.window_len = window_len
         self.batch_size = batch_size
@@ -250,9 +253,11 @@ class IdentityDataGenerator(keras.utils.Sequence):
         count, _ = self.data.shape
         print('count:', count)
         if dataset == 'train':
-            self.df = self.data[:int(0.7 * count)]
-        else:
-            self.df = self.data[int(0.7*count):]
+            self.df = self.data[:int(0.6 * count)]
+        elif dataset == 'test':
+            self.df = self.data[int(0.7 * count):]
+        elif dataset == 'validate':
+            self.df = self.data[int(0.6 * count):int(0.7 * count)]
 
         self.batch_size = batch_size
 
