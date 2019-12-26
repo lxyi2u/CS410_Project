@@ -246,6 +246,9 @@ class DataGenerator(keras.utils.Sequence):
 
         return batch_x, batch_y
 
+    def get_len(self):
+        return np.floor(self.num/self.batch_size).astype(np.int)
+
 
 class IdentityDataGenerator(keras.utils.Sequence):
 
@@ -284,9 +287,10 @@ class IdentityDataGenerator(keras.utils.Sequence):
         # print('batch_x:', batch_x.shape)
 
         return batch, batch
-    
+
     def get_len(self):
         return self.df.shape[0]
+
 
 if __name__ == "__main__":
     DataGenerator('./dataset/data.csv', 10, 50, 32, 'test')

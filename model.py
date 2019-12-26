@@ -19,7 +19,8 @@ def model_cat(encoder, rnn, WINDOW_LEN,
     data = Input(shape=(WINDOW_LEN, ENCODING_DIM_INPUT, ))
     x = Lambda(preprocess_reshape, output_shape=(ENCODING_DIM_INPUT,))(data)
     x = encoder(x)
-    x = Lambda(backend_reshape, output_shape=(WINDOW_LEN, ENCODING_DIM_OUTPUT))(x)
+    x = Lambda(backend_reshape, output_shape=(
+        WINDOW_LEN, ENCODING_DIM_OUTPUT))(x)
     out = rnn(x)
 
     return Model(inputs=data, output=out)
@@ -40,17 +41,17 @@ def lstm(input_shape, hidden_dim=128, dropout=0):
     return model
 
 
-def multilayer_lstm(input_shape, dropout=0):
+def multilayer_lstm(input_shape, hidden_dim=128, dropout=0):
 
     input_length, input_feature = input_shape
     model = Sequential()
-    model.add(LSTM(128, input_shape=(input_length, input_feature),
+    model.add(LSTM(hidden_dim, input_shape=(input_length, input_feature),
                    return_sequences=True, dropout=dropout,
                    recurrent_dropout=dropout))
-    model.add(LSTM(128, input_shape=(input_length, input_feature),
+    model.add(LSTM(hidden_dim, input_shape=(input_length, input_feature),
                    return_sequences=True, dropout=dropout,
                    recurrent_dropout=dropout))
-    model.add(LSTM(128, input_shape=(input_length, input_feature),
+    model.add(LSTM(hidden_dim, input_shape=(input_length, input_feature),
                    return_sequences=False, dropout=dropout,
                    recurrent_dropout=dropout))
     model.add(Dense(1))
