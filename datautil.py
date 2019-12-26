@@ -243,7 +243,7 @@ class DataGenerator(keras.utils.Sequence):
         print('label:', len(self.label))
 
     def __len__(self):
-        return np.floor(self.num/self.batch_size).astype(np.int)
+        return np.floor(self.num/self.batch_size-1).astype(np.int)
 
     def get_num(self):
         return self.num
