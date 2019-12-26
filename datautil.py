@@ -329,5 +329,29 @@ class IdentityDataGenerator(keras.utils.Sequence):
     def get_len(self):
         return self.df.shape[0]
 
+class IdentityDataReader(keras.utils.Sequence):
+    def __init__(self, datafile, dataset):
+        self.data = pd.read_csv(datafile)
+        count, _ = self.data.shape
+        print('count:', count)
+        if dataset == 'train':
+            self.df = self.data[:int(0.6 * count)]
+        elif dataset == 'test':
+            self.df = self.data[int(0.7 * count):]
+        elif dataset == 'validate':
+            self.df = self.data[int(0.6 * count):int(0.7 * count)]
+
+        self.df_rows, self.df_cols = self.df.shape
+        self.num = self.df_rows
+        print('number:', self.num)
+
+        # normalize feature
+        self.feature = self.df.drop(
+            ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
+        self.feature_normal = maxmin_norm(self.feature.values)
+
+    def get_data(self):
+        return self.feature_normal
+
 if __name__ == "__main__":
     DataGenerator('./dataset/data.csv', 10, 50, 32, 'test')
