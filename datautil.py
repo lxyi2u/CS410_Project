@@ -210,7 +210,8 @@ class DataGenerator(keras.utils.Sequence):
         # 找出跳点
         self.jump_points = []
         self.jump_points_num = 0
-        self.df['UpdateTime'] = pd.to_datetime(self.df.UpdateTime, format='%H:%M:%S')
+        self.df['UpdateTime'] = pd.to_datetime(
+            self.df.UpdateTime, format='%H:%M:%S')
         time_delta = pd.to_datetime(
             '01:00:00', format='%H:%M:%S') - pd.to_datetime('00:00:00', format='%H:%M:%S')
         for i in range(self.df_rows-1):
@@ -220,7 +221,8 @@ class DataGenerator(keras.utils.Sequence):
                 self.jump_points_num += 1
 
         # 总数还要减去跳点造成失效的数据，且知跳点间隔足够大
-        self.num = self.df_rows-self.predict_days-self.window_len+1-self.jump_points_num*(self.window_len-1)
+        self.num = self.df_rows-self.predict_days-self.window_len + \
+            1-self.jump_points_num*(self.window_len-1)
         print('jump_points_num:', self.jump_points_num)
 
         # get label
@@ -230,7 +232,8 @@ class DataGenerator(keras.utils.Sequence):
         self.label = []
 
         for i in range(self.df_rows - self.predict_days):
-            self.label.append(self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
+            self.label.append(
+                self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
         self.label_max = max(self.label)
         self.label_min = min(self.label)
         self.label = [(l-self.label_min)/(self.label_max-self.label_min)
@@ -268,7 +271,7 @@ class DataGenerator(keras.utils.Sequence):
         return prev_jump_num
 
     def __getitem__(self, idx):
-        print('index', idx)
+        # print('index', idx)
         batch_x = []
         batch_y = []
         for i in range(idx*self.batch_size, (idx+1)*self.batch_size):
@@ -288,7 +291,6 @@ class DataGenerator(keras.utils.Sequence):
 
     def get_len(self):
         return np.floor(self.num/self.batch_size).astype(np.int)
-
 
 
 class IdentityDataGenerator(keras.utils.Sequence):
@@ -332,6 +334,7 @@ class IdentityDataGenerator(keras.utils.Sequence):
     def get_len(self):
         return self.df.shape[0]
 
+
 class IdentityDataReader(keras.utils.Sequence):
     def __init__(self, datafile, dataset):
         self.data = pd.read_csv(datafile)
@@ -355,6 +358,7 @@ class IdentityDataReader(keras.utils.Sequence):
 
     def get_data(self):
         return self.feature_normal
+
 
 if __name__ == "__main__":
     DataGenerator('./dataset/data.csv', 10, 50, 32, 'test')

@@ -7,7 +7,7 @@ from keras.models import load_model
 
 INPUT_LENGTH = 50
 INPUT_FEATURE = 136
-ENCODING_DIM_OUTPUT = 16
+ENCODING_DIM_OUTPUT = 128
 BATCH_SIZE = 128
 EPOCHS = 8
 COUNT = 1721577
@@ -16,26 +16,28 @@ PREDICT_DAYS = 10
 TRAIN_NUM = int(COUNT*0.6) - WINDOW_LEN - PREDICT_DAYS + 1
 VAL_NUM = int(COUNT*0.1) - WINDOW_LEN - PREDICT_DAYS + 1
 TEST_NUM = int(COUNT*0.3) - WINDOW_LEN - PREDICT_DAYS + 1
-FILEPATH = "./model/encoderlstm.h5"
-
-batch_size = [64, 128, 256]
-hidden_dim = [32, 64, 128, 256, 512]
-window_len = [i*10 for i in range(3, 11)]
+LOGNAME = 'sae_sigmoid_512_lstm'
+FILEPATH = "./model/" + LOGNAME
+batch_size = [128, 256, 512, 1024, 2048]
+hidden_dim = [64, 128, 256, 512]
+window_len = [i*10 for i in range(5, 11)]
 dropout = [i/10 for i in range(0, 5)]
 
 
 def train():
 
-    encoder = load_model('./model/encoder.h5')
+    # encoder = load_model('./model/encoder.h5')
+    sae = load_model('./model/sae_sigmoid_512.h5')
     rnn = lstm((INPUT_LENGTH, ENCODING_DIM_OUTPUT))
     model = model_cat(
-        encoder, rnn, WINDOW_LEN, INPUT_FEATURE, ENCODING_DIM_OUTPUT)
+        sae, rnn, WINDOW_LEN, INPUT_FEATURE, ENCODING_DIM_OUTPUT)
     # model = multilayer_lstm((INPUT_LENGTH, INPUT_FEATURE))
     # model=linear_regression((INTPUT_LENGTH,INPUT_FEATURE))
     model.summary()
 
     train_dataset = DataGenerator(
         './dataset/data.csv', PREDICT_DAYS, WINDOW_LEN, BATCH_SIZE, 'train')
+    print('steps_per_epoch:', train_dataset.get_len())
     val_dataset = DataGenerator(
         './dataset/data.csv', PREDICT_DAYS, WINDOW_LEN, BATCH_SIZE, 'validate')
     # model = lstm((INPUT_LENGTH, INPUT_FEATURE))
@@ -51,54 +53,57 @@ def train():
     history = LossHistory()
     model.fit_generator(
         train_dataset,
-        steps_per_epoch=np.floor(TRAIN_NUM / BATCH_SIZE),
+        steps_per_epoch=train_dataset.get_len(),
         epochs=EPOCHS,
         validation_data=val_dataset,
-        validation_steps=np.floor(VAL_NUM / BATCH_SIZE),
+        validation_steps=val_dataset.get_len(),
         shuffle=True,
         verbose=1,
         callbacks=[checkpoint, earlystop, history]
     )
     # model.save(FILEPATH)
-    history.loss_plot('epoch', 'encoderlstm')
-    history.loss_plot('batch', 'encoderlstm')
+    history.loss_plot('epoch', LOGNAME)
+    history.loss_plot('batch', LOGNAME)
 
 
 def adjust_para():
 
     earlystop = EarlyStopping(monitor='val_loss', patience=1,
                               verbose=1, mode='auto')
-    for b in batch_size:
-        for w in window_len:
-            train_dataset = DataGenerator(
-                './dataset/data.csv', PREDICT_DAYS, w, b, 'train')
-            val_dataset = DataGenerator(
-                './dataset/data.csv', PREDICT_DAYS, w, b, 'validate')
-            for h in hidden_dim:
-                for d in dropout:
-                    print('batch_size:{},window_len:{},hidden_dim:{} \
-                        dropout:{}'.format(b, w, h, d))
-                    model_path = './model/lstm_b{}_w_{}_h_{}_d{}'.format(
-                        b, w, h, d)
-                    checkpoint = ModelCheckpoint(
-                        model_path, monitor='val_loss', verbose=1,
-                        save_best_only=True, mode='min')
-                    model = lstm((w, INPUT_FEATURE), h, d)
-                    model.compile(optimizer='adam', loss='mse')
-                    history = LossHistory()
-                    model.fit_generator(
-                        train_dataset,
-                        steps_per_epoch=train_dataset.get_len(),
-                        epochs=EPOCHS,
-                        validation_data=val_dataset,
-                        validation_steps=val_dataset.get_len(),
-                        shuffle=True,
-                        verbose=1,
-                        callbacks=[checkpoint, earlystop, history]
-                    )
-                    history.loss_plot('epoch', model_path)
-                    history.loss_plot('batch', model_path)
-
+    # for b in batch_size:
+    #      for w in window_len:
+    b = 128
+    w = 50
+    train_dataset = DataGenerator(
+        './dataset/data.csv', PREDICT_DAYS, w, b, 'train')
+    val_dataset = DataGenerator(
+        './dataset/data.csv', PREDICT_DAYS, w, b, 'validate')
+    for h in hidden_dim:
+        for d in dropout:
+            print('batch_size:{},window_len:{},hidden_dim:{} \
+                dropout:{}'.format(b, w, h, d))
+            model_name = 'lstm_b{}_w_{}_h_{}_d{}'.format(
+                b, w, h, d)
+            model_path = './model/'+model_name
+            checkpoint = ModelCheckpoint(
+                model_path, monitor='val_loss', verbose=1,
+                save_best_only=True, mode='min')
+            model = lstm((w, INPUT_FEATURE), h, d)
+            model.compile(optimizer='adam', loss='mse')
+            history = LossHistory()
+            model.fit_generator(
+                train_dataset,
+                steps_per_epoch=train_dataset.get_len(),
+                epochs=EPOCHS,
+                validation_data=val_dataset,
+                validation_steps=val_dataset.get_len(),
+                shuffle=True,
+                verbose=1,
+                callbacks=[checkpoint, earlystop, history]
+            )
+            history.loss_plot('epoch', model_name)
+            history.loss_plot('batch', model_name)
+    '''
     for b in batch_size:
         for w in window_len:
             train_dataset = DataGenerator(
@@ -127,8 +132,46 @@ def adjust_para():
                     )
                     history.loss_plot('epoch', model_path)
                     history.loss_plot('batch', model_path)
+    '''
+
+
+def adj_batch_size():
+    earlystop = EarlyStopping(monitor='val_loss', patience=1,
+                              verbose=1, mode='auto')
+    w = 50
+    h = 128
+    d = 0
+    for b in batch_size:
+        train_dataset = DataGenerator(
+            './dataset/data.csv', PREDICT_DAYS, w, b, 'train')
+        val_dataset = DataGenerator(
+            './dataset/data.csv', PREDICT_DAYS, w, b, 'validate')
+        print('batch_size:{},window_len:{},hidden_dim:{} \
+            dropout:{}'.format(b, w, h, d))
+        model_name = 'lstm_b{}_w_{}_h_{}_d{}'.format(
+            b, w, h, d)
+        model_path = './model/' + model_name
+        checkpoint = ModelCheckpoint(
+            model_path, monitor='val_loss', verbose=1,
+            save_best_only=True, mode='min')
+        model = lstm((w, INPUT_FEATURE), h, d)
+        model.compile(optimizer='adam', loss='mse')
+        history = LossHistory()
+        model.fit_generator(
+            train_dataset,
+            steps_per_epoch=train_dataset.get_len(),
+            epochs=EPOCHS,
+            validation_data=val_dataset,
+            validation_steps=val_dataset.get_len(),
+            shuffle=True,
+            verbose=1,
+            callbacks=[checkpoint, earlystop, history]
+        )
+        history.loss_plot('epoch', model_name)
+        history.loss_plot('batch', model_name)
 
 
 if __name__ == "__main__":
-
-    adjust_para()
+    adj_batch_size()
+    # adjust_para()
+    # train()

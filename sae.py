@@ -1,95 +1,94 @@
 from keras.models import Model
 from keras.layers import Dense, Input
-import keras
-from datautil import IdentityDataGenerator
+from datautil import IdentityDataGenerator, IdentityDataReader
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 from log import LossHistory
 import numpy as np
 
 ENCODING_DIM_INPUT = 136
-ENCODING_DIM_LAYER1 = 128
-ENCODING_DIM_LAYER2 = 64
-ENCODING_DIM_LAYER3 = 32
+ENCODING_DIM_LAYER1 = 512
+ENCODING_DIM_LAYER2 = 256
+ENCODING_DIM_LAYER3 = 128
 ENCODING_DIM_OUTPUT = 16
 BATCH_SIZE = 256
 EPOCHS = 8
 
 
-def sae_v1():
+def sae_v1(activation='sigmoid'):
 
-    x_train = IdentityDataGenerator(
-        './dataset/data.csv',  BATCH_SIZE, 'train')
-    x_val = IdentityDataGenerator(
-        './dataset/data.csv',  BATCH_SIZE, 'validate')
-    earlystop = EarlyStopping(monitor='val_loss', patience=1,
-                              verbose=1, mode='auto')
+    trainset = IdentityDataReader('./dataset/data.csv', 'train')
+    # valset = IdentityDataReader('./dataset/data.csv', 'validate')
+    x_train = trainset.get_data()
+    # earlystop = EarlyStopping(monitor='val_loss', patience=1,
+    #                           verbose=1, mode='auto')
 
-    encode_layer1 = Dense(ENCODING_DIM_LAYER1, activation='relu')
-    decode_layer1 = Dense(ENCODING_DIM_INPUT, activation='relu')
-    encode_layer2 = Dense(ENCODING_DIM_LAYER2, activation='relu')
-    decode_layer2 = Dense(ENCODING_DIM_LAYER1, activation='relu')
-    encode_layer3 = Dense(ENCODING_DIM_LAYER3, activation='relu')
-    decode_layer3 = Dense(ENCODING_DIM_LAYER2, activation='relu')
+    encode_layer1 = Dense(ENCODING_DIM_LAYER1, activation=activation)
+    decode_layer1 = Dense(ENCODING_DIM_INPUT, activation=activation)
+    encode_layer2 = Dense(ENCODING_DIM_LAYER2, activation=activation)
+    decode_layer2 = Dense(ENCODING_DIM_LAYER1, activation=activation)
+    encode_layer3 = Dense(ENCODING_DIM_LAYER3, activation=activation)
+    decode_layer3 = Dense(ENCODING_DIM_LAYER2, activation=activation)
 
     # train layer1
     input_data = Input(shape=(ENCODING_DIM_INPUT, ))
     encode_feature1 = encode_layer1(input_data)
     decode_feature1 = decode_layer1(encode_feature1)
-    layer1 = Model(inputs=input_image, outputs=decode_feature1)
+    layer1 = Model(inputs=input_data, outputs=decode_feature1)
+    hidden1 = Model(inputs=input_data, outputs=encode_feature1)
     layer1.compile(optimizer='adam', loss='mse')
     layer1.fit(
         x_train,
         x_train,
-        epochs=1,
+        epochs=2,
         batch_size=BATCH_SIZE,
-        shuffer=True
+        shuffle=True
     )
-    layer1.save('./model/layer1')
-    encode_layer1.trainable = False
+    hidden1.save('./model/layer1.h5')
 
     # train layer2
-    x_feature1 = layer1.predict(x_train)
+    x_feature1 = hidden1.predict(x_train)
     print(x_feature1.shape)
     input_data = Input(shape=(ENCODING_DIM_LAYER1, ))
     encode_feature2 = encode_layer2(input_data)
     decode_feature2 = decode_layer2(encode_feature2)
     layer2 = Model(inputs=input_data, outputs=decode_feature2)
+    hidden2 = Model(inputs=input_data, outputs=encode_feature2)
     layer2.summary()
     layer2.compile(optimizer='adam', loss='mse')
     layer2.fit(
         x_feature1,
         x_feature1,
-        epochs=1,
+        epochs=2,
         batch_size=BATCH_SIZE,
-        shuffer=True
+        shuffle=True
     )
-    layer2.save('./model/layer2')
-    encode_layer2.trainable = False
+    hidden2.save('./model/layer2.h5')
 
     # train layer3
-    x_feature2 = layer2.predict(x_feature1)
+    x_feature2 = hidden2.predict(x_feature1)
     print(x_feature2.shape)
     input_data = Input(shape=(ENCODING_DIM_LAYER2, ))
-    encode_feature3 = encode_layer2(input_data)
-    decode_feature3 = decode_layer2(encode_feature3)
+    encode_feature3 = encode_layer3(input_data)
+    decode_feature3 = decode_layer3(encode_feature3)
     layer3 = Model(inputs=input_data, outputs=decode_feature3)
+    hidden3 = Model(inputs=input_data, outputs=encode_feature3)
     layer3.summary()
     layer3.compile(optimizer='adam', loss='mse')
     layer3.fit(
         x_feature2,
         x_feature2,
-        epochs=1,
+        epochs=2,
         batch_size=BATCH_SIZE,
-        shuffer=True
+        shuffle=True
     )
-    layer3.save('./model/layer2')
+    hidden3.save('./model/layer3.h5')
 
-
-    encode_layer1.trainable = True
-    encode_layer2.trainable = True
-
-    sae = Model(inputs=input_image, output=encode_feature3)
-    sae.save('./model/sae.h5')
+    input_data = Input(shape=(ENCODING_DIM_INPUT, ))
+    encode_feature1 = encode_layer1(input_data)
+    encode_feature2 = encode_layer2(encode_feature1)
+    encode_feature3 = encode_layer3(encode_feature2)
+    sae = Model(inputs=input_data, outputs=encode_feature3)
+    sae.save('./model/sae_sigmoid_512.h5')
 
 
 def sae_v2():

@@ -5,22 +5,28 @@ from keras import backend as K
 from keras.layers.core import Lambda
 
 
-def preprocess_reshape(x):
-    return K.reshape(x, (-1, 136))
+def preprocess_reshape(x, input_dim):
+    return K.reshape(x, (-1, input_dim))
 
 
-def backend_reshape(x):
-    return K.reshape(x, (-1, 50, 16))
+def backend_reshape(x, w, output_dim):
+    return K.reshape(x, (-1, w, output_dim))
 
 
 def model_cat(encoder, rnn, WINDOW_LEN,
-              ENCODING_DIM_INPUT, ENCODING_DIM_OUTPUT=16):
+              ENCODING_DIM_INPUT, ENCODING_DIM_OUTPUT):
 
     data = Input(shape=(WINDOW_LEN, ENCODING_DIM_INPUT, ))
-    x = Lambda(preprocess_reshape, output_shape=(ENCODING_DIM_INPUT,))(data)
+    x = Lambda(
+        preprocess_reshape,
+        output_shape=(ENCODING_DIM_INPUT,),
+        arguments={'input_dim': ENCODING_DIM_INPUT})(data)
     x = encoder(x)
-    x = Lambda(backend_reshape, output_shape=(
-        WINDOW_LEN, ENCODING_DIM_OUTPUT))(x)
+    x = Lambda(
+        backend_reshape,
+        output_shape=(WINDOW_LEN, ENCODING_DIM_OUTPUT),
+        arguments={'w': WINDOW_LEN,
+                   'output_dim': ENCODING_DIM_OUTPUT})(x)
     out = rnn(x)
 
     return Model(inputs=data, output=out)
@@ -37,7 +43,6 @@ def lstm(input_shape, hidden_dim=128, dropout=0):
                    return_sequences=False, dropout=dropout,
                    recurrent_dropout=dropout))
     model.add(Dense(1))
-
     return model
 
 
@@ -131,6 +136,7 @@ def nerual_network(input_shape):
 #         # compile autoencoder
 #         autoencoder.compile(optimizer='adam', loss='mse')
 
+
 #         # training
 #         autoencoder.fit(
 #             self.unlabeled_dataset,
@@ -140,3 +146,6 @@ def nerual_network(input_shape):
 #             verbose=1,
 #             # callbacks=[checkpoint]
 #         )
+if __name__ == "__main__":
+    model = lstm((50, 136))
+    model.summary()
