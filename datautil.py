@@ -4,6 +4,7 @@ import h5py
 import os
 import tensorflow as tf
 import keras
+import random
 
 
 class HDF5DatasetWriter:
@@ -218,10 +219,10 @@ class DataGenerator(keras.utils.Sequence):
                     ((self.df['UpdateTime'][self.begin+i]-self.df['UpdateTime'][self.begin+i+1]) > time_delta)):
                 self.jump_points.append(i)
                 self.jump_points_num += 1
+        print('jump_points_num:', self.jump_points_num)
 
         # 总数还要减去跳点造成失效的数据，且知跳点间隔足够大
         self.num = self.df_rows-self.predict_days-self.window_len+1-self.jump_points_num*(self.window_len-1)
-        print('jump_points_num:', self.jump_points_num)
 
         # get label
         # print(self.df.head())
@@ -286,6 +287,70 @@ class DataGenerator(keras.utils.Sequence):
 
         return batch_x, batch_y
 
+class DataCertainIntervalGenerator(keras.utils.Sequence):
+
+    def __init__(self, datafile, predict_days, window_len, interval, batch_size, dataset):
+        self.data = pd.read_csv(datafile)
+        count, _ = self.data.shape
+        print('count', count)
+        if dataset == 'train':
+            self.df = self.data[:int(0.6 * count)]
+            self.begin = 0
+        elif dataset == 'test':
+            self.df = self.data[int(0.7*count):]
+            self.begin = int(0.7*count)
+        elif dataset == 'validate':
+            self.df = self.data[int(0.6*count):int(0.7*count)]
+            self.begin = int(0.6*count)
+
+        self.predict_days = predict_days
+        self.window_len = window_len
+        self.interval = interval
+        self.batch_size = batch_size
+
+        self.df_rows, self.df_cols = self.df.shape
+
+        self.total_num = self.df_rows - self.predict_days - self.window_len + 1
+        self.num = int((self.total_num-1)/self.interval) + 1
+
+        # get label
+        self.price = self.df['midPrice']
+        self.label = []
+
+        for i in range(self.df_rows - self.predict_days):
+            self.label.append(self.price[self.begin + i + self.predict_days] - self.price[self.begin + i])
+        self.label_max = max(self.label)
+        self.label_min = min(self.label)
+        self.label = [(l - self.label_min) / (self.label_max - self.label_min)
+                      for l in self.label]
+        # normalize feature
+        self.feature = self.df.drop(
+            ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
+        self.feature_normal = maxmin_norm(self.feature.values)
+        print('num:', self.num)
+        print('label:', len(self.label))
+
+    def __len__(self):
+        return np.floor(self.num/self.batch_size-1).astype(np.int)
+
+    def get_num(self):
+        return self.num
+
+    def __getitem__(self, idx):
+        print('index', idx)
+        batch_x = []
+        batch_y = []
+        for i in range(idx*self.batch_size, (idx+1)*self.batch_size):
+            right_boundary = i*self.interval
+            left_boundary = max(0, right_boundary - self.interval + 1)
+            index = random.choice(range(left_boundary, right_boundary+1))
+            batch_x.append(self.feature_normal[index:index+self.window_len])
+            batch_y.append(self.label[index+self.window_len-1])
+
+        batch_x = np.array(batch_x)
+        batch_y = np.array(batch_y)
+
+        return batch_x, batch_y
 
 
 class IdentityDataGenerator(keras.utils.Sequence):
