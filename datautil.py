@@ -211,7 +211,8 @@ class DataGenerator(keras.utils.Sequence):
         # 找出跳点
         self.jump_points = []
         self.jump_points_num = 0
-        self.df['UpdateTime'] = pd.to_datetime(self.df.UpdateTime, format='%H:%M:%S')
+        self.df['UpdateTime'] = pd.to_datetime(
+            self.df.UpdateTime, format='%H:%M:%S')
         time_delta = pd.to_datetime(
             '01:00:00', format='%H:%M:%S') - pd.to_datetime('00:00:00', format='%H:%M:%S')
         for i in range(self.df_rows-1):
@@ -231,7 +232,8 @@ class DataGenerator(keras.utils.Sequence):
         self.label = []
 
         for i in range(self.df_rows - self.predict_days):
-            self.label.append(self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
+            self.label.append(
+                self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
         self.label_max = max(self.label)
         self.label_min = min(self.label)
         self.label = [(l-self.label_min)/(self.label_max-self.label_min)
@@ -269,7 +271,7 @@ class DataGenerator(keras.utils.Sequence):
         return prev_jump_num
 
     def __getitem__(self, idx):
-        print('index', idx)
+        # print('index', idx)
         batch_x = []
         batch_y = []
         for i in range(idx*self.batch_size, (idx+1)*self.batch_size):
@@ -286,6 +288,9 @@ class DataGenerator(keras.utils.Sequence):
         # batch_y = np.array(self.label[idx*self.batch_size:(idx+1)*self.batch_size])
 
         return batch_x, batch_y
+
+    def get_len(self):
+        return np.floor(self.num/self.batch_size-1).astype(np.int)
 
 class DataCertainIntervalGenerator(keras.utils.Sequence):
 
@@ -390,9 +395,10 @@ class IdentityDataGenerator(keras.utils.Sequence):
         # print('batch_x:', batch_x.shape)
 
         return batch, batch
-    
+
     def get_len(self):
         return self.df.shape[0]
+
 
 class IdentityDataReader(keras.utils.Sequence):
     def __init__(self, datafile, dataset):
@@ -417,6 +423,7 @@ class IdentityDataReader(keras.utils.Sequence):
 
     def get_data(self):
         return self.feature_normal
+
 
 if __name__ == "__main__":
     DataGenerator('./dataset/data.csv', 10, 50, 32, 'test')
