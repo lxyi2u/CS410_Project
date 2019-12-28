@@ -1,5 +1,5 @@
 from model import lstm, multilayer_lstm, model_cat
-from datautil import DataGenerator
+from datautil import DataGenerator, DataCertainIntervalGenerator
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 import numpy as np
 from log import LossHistory
@@ -9,7 +9,7 @@ INPUT_LENGTH = 50
 INPUT_FEATURE = 136
 ENCODING_DIM_OUTPUT = 128
 BATCH_SIZE = 128
-EPOCHS = 8
+EPOCHS = 32
 COUNT = 1721577
 WINDOW_LEN = 50
 PREDICT_DAYS = 10
@@ -20,7 +20,7 @@ LOGNAME = 'sae_sigmoid_512_lstm'
 FILEPATH = "./model/" + LOGNAME
 batch_size = [128, 256, 512, 1024, 2048]
 hidden_dim = [64, 128, 256, 512]
-window_len = [i*10 for i in range(5, 11)]
+window_len = [i*10 for i in range(3, 11)]
 dropout = [i/10 for i in range(0, 5)]
 
 
@@ -141,7 +141,8 @@ def adj_batch_size():
     w = 50
     h = 128
     d = 0
-    for b in batch_size:
+    l = [64]
+    for b in l:
         train_dataset = DataGenerator(
             './dataset/data.csv', PREDICT_DAYS, w, b, 'train')
         val_dataset = DataGenerator(
@@ -171,7 +172,104 @@ def adj_batch_size():
         history.loss_plot('batch', model_name)
 
 
+def adjust_window():
+    earlystop = EarlyStopping(monitor='val_loss', patience=1,
+                              verbose=1, mode='auto')
+    h = 128
+    d = 0
+    b = 128
+    for w in window_len:
+        train_dataset = DataGenerator(
+            './dataset/data.csv', PREDICT_DAYS, w, b, 'train')
+        val_dataset = DataGenerator(
+            './dataset/data.csv', PREDICT_DAYS, w, b, 'validate')
+        print('batch_size:{},window_len:{},hidden_dim:{} \
+            dropout:{}'.format(b, w, h, d))
+        model_name = 'lstm_b{}_w_{}_h_{}_d{}'.format(
+            b, w, h, d)
+        model_path = './model/' + model_name
+        checkpoint = ModelCheckpoint(
+            model_path, monitor='val_loss', verbose=1,
+            save_best_only=True, mode='min')
+        model = lstm((w, INPUT_FEATURE), h, d)
+        model.compile(optimizer='adam', loss='mse')
+        history = LossHistory()
+        model.fit_generator(
+            train_dataset,
+            steps_per_epoch=train_dataset.get_len(),
+            epochs=EPOCHS,
+            validation_data=val_dataset,
+            validation_steps=val_dataset.get_len(),
+            shuffle=True,
+            verbose=1,
+            callbacks=[checkpoint, earlystop, history]
+        )
+        history.loss_plot('epoch', model_name)
+        history.loss_plot('batch', model_name)
+
+
+def adj_epoch_size():
+    h = 128
+    d = 0
+    b = 128
+    w = 50
+
+    train_dataset = DataGenerator(
+        './dataset/data.csv', PREDICT_DAYS, w, b, 'train')
+    val_dataset = DataGenerator(
+        './dataset/data.csv', PREDICT_DAYS, w, b, 'validate')
+    adj_train(h, d, b, w, train_dataset, val_dataset)
+
+
+def adj_train(h, d, b, w, train_dataset, val_dataset, i=1):
+
+    earlystop = EarlyStopping(monitor='val_loss', patience=1,
+                              verbose=1, mode='auto')
+
+    print('batch_size:{},window_len:{},hidden_dim:{} \
+        dropout:{}'.format(b, w, h, d))
+    model_name = 'lstm_b{}_w_{}_h_{}_d{}_i{}'.format(
+        b, w, h, int(d*10), i)
+    model_path = './model/' + model_name + '.h5'
+    checkpoint = ModelCheckpoint(
+        model_path, monitor='val_loss', verbose=1,
+        save_best_only=True, mode='min')
+    model = lstm((w, INPUT_FEATURE), h, d)
+    model.compile(optimizer='adam', loss='mse')
+    history = LossHistory()
+    model.fit_generator(
+        train_dataset,
+        steps_per_epoch=train_dataset.get_len(),
+        epochs=EPOCHS,
+        validation_data=val_dataset,
+        validation_steps=val_dataset.get_len(),
+        shuffle=True,
+        verbose=1,
+        callbacks=[checkpoint, earlystop, history]
+    )
+    history.loss_plot('epoch', model_name+'.jpg')
+    history.loss_plot('batch', model_name+'.jpg')
+
+
+def adj_interval():
+
+    h = 128
+    d = 0
+    b = 128
+    w = 50
+    i = 5
+
+    train_dataset = DataCertainIntervalGenerator(
+        './dataset/data.csv', PREDICT_DAYS, w, i, b, 'train')
+    val_dataset = DataCertainIntervalGenerator(
+        './dataset/data.csv', PREDICT_DAYS, w, i, b, 'validate')
+    adj_train(h, d, b, w, train_dataset, val_dataset, i)
+
+
 if __name__ == "__main__":
-    adj_batch_size()
+    # adj_batch_size()
+    # adj_epoch_size()
     # adjust_para()
+    # adjust_window()
     # train()
+    adj_interval()

@@ -223,7 +223,8 @@ class DataGenerator(keras.utils.Sequence):
         print('jump_points_num:', self.jump_points_num)
 
         # 总数还要减去跳点造成失效的数据，且知跳点间隔足够大
-        self.num = self.df_rows-self.predict_days-self.window_len+1-self.jump_points_num*(self.window_len-1)
+        self.num = self.df_rows-self.predict_days-self.window_len + \
+            1-self.jump_points_num*(self.window_len-1)
 
         # get label
         # print(self.df.head())
@@ -292,9 +293,12 @@ class DataGenerator(keras.utils.Sequence):
     def get_len(self):
         return np.floor(self.num/self.batch_size-1).astype(np.int)
 
+
 class DataCertainIntervalGenerator(keras.utils.Sequence):
 
-    def __init__(self, datafile, predict_days, window_len, interval, batch_size, dataset):
+    def __init__(
+            self, datafile, predict_days, window_len,
+            interval, batch_size, dataset):
         self.data = pd.read_csv(datafile)
         count, _ = self.data.shape
         print('count', count)
@@ -323,7 +327,8 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         self.label = []
 
         for i in range(self.df_rows - self.predict_days):
-            self.label.append(self.price[self.begin + i + self.predict_days] - self.price[self.begin + i])
+            self.label.append(
+                self.price[self.begin + i + self.predict_days] - self.price[self.begin + i])
         self.label_max = max(self.label)
         self.label_min = min(self.label)
         self.label = [(l - self.label_min) / (self.label_max - self.label_min)
