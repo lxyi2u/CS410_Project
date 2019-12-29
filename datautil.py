@@ -72,7 +72,7 @@ def zscore_norm(array):
     data_rows, data_cols = data_shape
     t = np.empty((data_rows, data_cols))
     for i in range(data_cols):
-        t[:, i] = (array[:, i] - meancols[i]) / stdcols
+        t[:, i] = (array[:, i] - meancols[i]) / stdcols[i]
     return t
 
 # 将数据集写入train.h5和test.h5,但文件较大
@@ -321,7 +321,7 @@ class DataGenerator(keras.utils.Sequence):
         labels = [(l - self.label_mean) / self.label_std for l in labels]
         return labels
 
-    def zscore_normalize_label(self, labels):
+    def zscore_denormalize_label(self, labels):
         labels = [l*self.label_std+self.label_min for l in labels]
         return labels
 
