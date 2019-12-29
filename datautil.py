@@ -188,7 +188,7 @@ def load_dataset(datafile, predict_days, window_len):
 
 class DataGenerator(keras.utils.Sequence):
 
-    def __init__(self, datafile, predict_days, window_len, batch_size, dataset):
+    def __init__(self, datafile, predict_days, window_len, batch_size, dataset, only_x = False):
         self.data = pd.read_csv(datafile)
         count, _ = self.data.shape
         print('count:', count)
@@ -205,6 +205,7 @@ class DataGenerator(keras.utils.Sequence):
         self.predict_days = predict_days
         self.window_len = window_len
         self.batch_size = batch_size
+        self.only_x = only_x
 
         self.df_rows, self.df_cols = self.df.shape
 
@@ -288,7 +289,7 @@ class DataGenerator(keras.utils.Sequence):
 
         # batch_y = np.array(self.label[idx*self.batch_size:(idx+1)*self.batch_size])
 
-        return batch_x, batch_y
+        return batch_x if(self.only_x) else batch_x, batch_y
 
     def get_len(self):
         return np.floor(self.num/self.batch_size-1).astype(np.int)
