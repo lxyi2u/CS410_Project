@@ -188,7 +188,7 @@ def load_dataset(datafile, predict_days, window_len):
 
 class DataGenerator(keras.utils.Sequence):
 
-    def __init__(self, datafile, predict_days, window_len, batch_size, dataset, only_x = False):
+    def __init__(self, datafile, predict_days, window_len, batch_size, dataset):
         self.data = pd.read_csv(datafile)
         count, _ = self.data.shape
         print('count:', count)
@@ -205,11 +205,17 @@ class DataGenerator(keras.utils.Sequence):
         self.predict_days = predict_days
         self.window_len = window_len
         self.batch_size = batch_size
-        self.only_x = only_x
 
         self.df_rows, self.df_cols = self.df.shape
 
-        # 找出跳点
+        # 获取全部label（最后10个除外）（为当前位置10条之后的涨跌幅）
+        self.price = self.df['midPrice']
+        self.label = []
+        for i in range(self.df_rows - self.predict_days):
+            self.label.append(
+                self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
+
+        # 找出跳点并去除受跳点影响的label
         self.jump_points = []
         self.jump_points_num = 0
         self.df['UpdateTime'] = pd.to_datetime(
@@ -221,24 +227,21 @@ class DataGenerator(keras.utils.Sequence):
                     ((self.df['UpdateTime'][self.begin+i]-self.df['UpdateTime'][self.begin+i+1]) > time_delta)):
                 self.jump_points.append(i)
                 self.jump_points_num += 1
+                # 去除受此跳点影响的label
+                self.label[i-self.predict_days+1:i+1] = list(np.zeros(self.predict_days))
+
         print('jump_points_num:', self.jump_points_num)
 
         # 总数还要减去跳点造成失效的数据，且知跳点间隔足够大
         self.num = self.df_rows-self.predict_days-self.window_len + \
-            1-self.jump_points_num*(self.window_len-1)
+            1-self.jump_points_num*(self.window_len+self.predict_days-1)
 
-        # get label
-        # print(self.df.head())
-        self.price = self.df['midPrice']
-        # print(self.price)
-        self.label = []
 
-        # get and normalize labels
-        for i in range(self.df_rows - self.predict_days):
-            self.label.append(
-                self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
+        # 正则化labels
         self.label_max = max(self.label)
         self.label_min = min(self.label)
+        print('label_max', self.label_max)
+        print('label_min', self.label_min)
         self.label = self.normalize_label(self.label)
 
         # normalize feature
@@ -253,6 +256,9 @@ class DataGenerator(keras.utils.Sequence):
 
     def get_num(self):
         return self.num
+
+    def get_len(self):
+        return np.floor(self.num/self.batch_size-1).astype(np.int)
 
     # 计算某窗口因跳点应向后滑动的窗口数
     # 传入原窗口的右端点，返回这个窗口因为跳点的存在需要向后滑动的窗口数
@@ -270,18 +276,18 @@ class DataGenerator(keras.utils.Sequence):
                 break
             else:
                 prev_jump_num += temp
-                idx += temp * self.window_len
+                idx += temp * (self.window_len+self.predict_days-1)
         return prev_jump_num
 
     def __getitem__(self, idx):
-        # print('index', idx)
+        print('index', idx)
         batch_x = []
         batch_y = []
         for i in range(idx*self.batch_size, (idx+1)*self.batch_size):
             # 计算窗口因跳点应向后滑动的窗口数
-            prev_jump_num = self.get_prev_jump_num(i+self.window_len)
+            prev_jump_num = self.get_prev_jump_num(i+self.window_len+self.predict_days-1)
             # 根据此窗口前的跳点数向后滑动窗口
-            i += self.window_len*prev_jump_num
+            i += (self.window_len+self.predict_days-1)*prev_jump_num
             batch_x.append(self.feature_normal[i:i+self.window_len])
             batch_y.append(self.label[i+self.window_len-1])
 
@@ -290,7 +296,7 @@ class DataGenerator(keras.utils.Sequence):
 
         # batch_y = np.array(self.label[idx*self.batch_size:(idx+1)*self.batch_size])
 
-        return batch_x if(self.only_x) else batch_x, batch_y
+        return batch_x, batch_y
 
     def normalize_label(self, labels):
         labels = [(l-self.label_min)/(self.label_max-self.label_min)
@@ -303,9 +309,6 @@ class DataGenerator(keras.utils.Sequence):
 
     def get_labels(self):
         return self.denormalize_label(self.label)
-
-    def get_len(self):
-        return np.floor(self.num/self.batch_size-1).astype(np.int)
 
 
 class DataCertainIntervalGenerator(keras.utils.Sequence):
@@ -359,6 +362,9 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
 
     def get_num(self):
         return self.num
+
+    def get_len(self):
+        return np.floor(self.num / self.batch_size - 1).astype(np.int)
 
     def __getitem__(self, idx):
         print('index', idx)
