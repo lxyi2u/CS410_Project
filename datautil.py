@@ -233,13 +233,14 @@ class DataGenerator(keras.utils.Sequence):
         # print(self.price)
         self.label = []
 
+        # get and normalize labels
         for i in range(self.df_rows - self.predict_days):
             self.label.append(
                 self.price[self.begin+i + self.predict_days] - self.price[self.begin+i])
         self.label_max = max(self.label)
         self.label_min = min(self.label)
-        self.label = [(l-self.label_min)/(self.label_max-self.label_min)
-                      for l in self.label]
+        self.label = self.normalize_label(self.label)
+
         # normalize feature
         self.feature = self.df.drop(
             ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
@@ -290,6 +291,18 @@ class DataGenerator(keras.utils.Sequence):
         # batch_y = np.array(self.label[idx*self.batch_size:(idx+1)*self.batch_size])
 
         return batch_x if(self.only_x) else batch_x, batch_y
+
+    def normalize_label(self, labels):
+        labels = [(l-self.label_min)/(self.label_max-self.label_min)
+                      for l in labels]
+        return labels
+
+    def denormalize_label(self, labels):
+        labels = [l*(self.label_max-self.label_min)+self.label_min for l  in labels]
+        return labels
+
+    def get_labels(self):
+        return self.denormalize_label(self.label)
 
     def get_len(self):
         return np.floor(self.num/self.batch_size-1).astype(np.int)
