@@ -364,14 +364,12 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         for i in range(self.df_rows - self.predict_days):
             self.label.append(
                 self.price[self.begin + i + self.predict_days] - self.price[self.begin + i])
-        self.label_max = max(self.label)
-        self.label_min = min(self.label)
-        self.label = [(l - self.label_min) / (self.label_max - self.label_min)
-                      for l in self.label]
+        self.label = self.zscore_normalize_label(self.label)
+
         # normalize feature
         self.feature = self.df.drop(
             ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
-        self.feature_normal = maxmin_norm(self.feature.values)
+        self.feature_normal = zscore_norm(self.feature.values)
         print('num:', self.num)
         print('label:', len(self.label))
 
@@ -399,6 +397,27 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         batch_y = np.array(batch_y)
 
         return batch_x, batch_y
+
+    def maxmin_normalize_label(self, labels):
+        self.label_max = max(self.label)
+        self.label_min = min(self.label)
+        labels = [(l-self.label_min)/(self.label_max-self.label_min)
+                      for l in labels]
+        return labels
+
+    def maxmin_denormalize_label(self, labels):
+        labels = [l*(self.label_max-self.label_min)+self.label_min for l  in labels]
+        return labels
+
+    def zscore_normalize_label(self, labels):
+        self.label_mean = np.array(self.label).mean()
+        self.label_std = np.array(self.label).std()
+        labels = [(l - self.label_mean) / self.label_std for l in labels]
+        return labels
+
+    def zscore_denormalize_label(self, labels):
+        labels = [l*self.label_std+self.label_min for l in labels]
+        return labels
 
 
 class IdentityDataGenerator(keras.utils.Sequence):
