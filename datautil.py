@@ -65,6 +65,16 @@ def maxmin_norm(array):
         t[:, i] = (array[:, i] - mincols[i]) / (maxcols[i] - mincols[i])
     return t
 
+def zscore_norm(array):
+    meancols = array.mean(axis=0)
+    stdcols = array.std(axis=0)
+    data_shape = array.shape
+    data_rows, data_cols = data_shape
+    t = np.empty((data_rows, data_cols))
+    for i in range(data_cols):
+        t[:, i] = (array[:, i] - meancols[i]) / stdcols
+    return t
+
 # 将数据集写入train.h5和test.h5,但文件较大
 
 
@@ -237,17 +247,13 @@ class DataGenerator(keras.utils.Sequence):
             1-self.jump_points_num*(self.window_len+self.predict_days-1)
 
 
-        # 正则化labels
-        self.label_max = max(self.label)
-        self.label_min = min(self.label)
-        print('label_max', self.label_max)
-        print('label_min', self.label_min)
-        self.label = self.normalize_label(self.label)
+        # 归一化labels
+        self.label = self.zscore_normalize_label(self.label)
 
         # normalize feature
         self.feature = self.df.drop(
             ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
-        self.feature_normal = maxmin_norm(self.feature.values)
+        self.feature_normal = zscore_norm(self.feature.values)
         print('num:', self.num)
         print('label:', len(self.label))
 
@@ -298,17 +304,29 @@ class DataGenerator(keras.utils.Sequence):
 
         return batch_x, batch_y
 
-    def normalize_label(self, labels):
+    def maxmin_normalize_label(self, labels):
+        self.label_max = max(self.label)
+        self.label_min = min(self.label)
         labels = [(l-self.label_min)/(self.label_max-self.label_min)
                       for l in labels]
         return labels
 
-    def denormalize_label(self, labels):
+    def maxmin_denormalize_label(self, labels):
         labels = [l*(self.label_max-self.label_min)+self.label_min for l  in labels]
         return labels
 
+    def zscore_normalize_label(self, labels):
+        self.label_mean = np.array(self.label).mean()
+        self.label_std = np.array(self.label).std()
+        labels = [(l - self.label_mean) / self.label_std for l in labels]
+        return labels
+
+    def zscore_normalize_label(self, labels):
+        labels = [l*self.label_std+self.label_min for l in labels]
+        return labels
+
     def get_labels(self):
-        return self.denormalize_label(self.label)
+        return self.label
 
 
 class DataCertainIntervalGenerator(keras.utils.Sequence):
