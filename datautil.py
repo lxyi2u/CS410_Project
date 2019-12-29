@@ -322,7 +322,7 @@ class DataGenerator(keras.utils.Sequence):
         return labels
 
     def zscore_denormalize_label(self, labels):
-        labels = [l*self.label_std+self.label_min for l in labels]
+        labels = [l*self.label_std+self.label_mean for l in labels]
         return labels
 
     def get_labels(self):
@@ -416,7 +416,7 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         return labels
 
     def zscore_denormalize_label(self, labels):
-        labels = [l*self.label_std+self.label_min for l in labels]
+        labels = [l*self.label_std+self.label_mean for l in labels]
         return labels
 
 
