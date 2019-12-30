@@ -6,202 +6,32 @@ import tensorflow as tf
 import keras
 import random
 
-
-class HDF5DatasetWriter:
-    def __init__(self, data_dims, labels_dims, outputPath, bufSize=20):
-        if os.path.exists(outputPath):
-            raise ValueError("The supplied 'outputPath' already"
-                             "exists and cannot be overwritten. Manually"
-                             "delete the file before continuing", outputPath)
-
-        self.db = h5py.File(outputPath, "w")
-        self.data = self.db.create_dataset(
-            "data", data_dims, maxshape=(None,) + data_dims[1:], dtype="float")
-        self.labels = self.db.create_dataset(
-            "labels", labels_dims, maxshape=(None,) + labels_dims[1:], dtype="float")
-        self.ddims = data_dims
-        self.ldims = labels_dims
-        self.bufSize = bufSize
-        self.buffer = {"data": [], "labels": []}
-        self.idx = 0
-
-    def add(self, data, labels):
-        # extend() 函数用于在列表末尾一次性追加另一个序列中的多个值（用新列表扩展原来的列表)
-        # 注意，用extend还有好处，添加的数据不会是之前list的引用！！
-        self.buffer["data"].append(data)
-        self.buffer["labels"].append(labels)
-
-        if len(self.buffer["data"]) >= self.bufSize:
-            self.flush()
-
-    def flush(self):
-        i = self.idx + len(self.buffer["data"])
-        if i > self.data.shape[0]:
-            # 拓展大小
-            new_data_shape = (self.data.shape[0] * 2,) + self.ddims[1:]
-            new_label_shape = (self.labels.shape[0] * 2,) + self.ldims[1:]
-            print("resize to new_shape:", new_data_shape)
-            self.data.resize(new_data_shape)
-            self.labels.resize(new_label_shape)
-        self.data[self.idx:i, :, :] = self.buffer["data"]
-        self.labels[self.idx:i] = self.buffer["labels"]
-        print("h5py have writen %d data" % i)
-        self.idx = i
-        self.buffer = {"data": [], "labels": []}
-
-    def close(self):
-        if len(self.buffer["data"]) > 0:
-            self.flush()
-
-
-# 归一化
-def maxmin_norm(array):
-    maxcols = array.max(axis=0)
-    mincols = array.min(axis=0)
-    data_shape = array.shape
-    data_rows, data_cols = data_shape
-    t = np.empty((data_rows, data_cols))
-    for i in range(data_cols):
-        t[:, i] = (array[:, i] - mincols[i]) / (maxcols[i] - mincols[i])
-    return t
-
-def zscore_norm(array):
-    meancols = array.mean(axis=0)
-    stdcols = array.std(axis=0)
-    data_shape = array.shape
-    data_rows, data_cols = data_shape
-    t = np.empty((data_rows, data_cols))
-    for i in range(data_cols):
-        t[:, i] = (array[:, i] - meancols[i]) / stdcols[i]
-    return t
-
-# 将数据集写入train.h5和test.h5,但文件较大
-
-
-def DataH5Writer(datafile, predict_days, window_len):
-    df = pd.read_csv(datafile)
-    print('read in succeed')
-    df_rows, df_cols = df.shape
-    train_num = int(df_rows*0.7)
-    feature = df.drop(['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
-    price = df['midPrice']
-
-    feature_normal = maxmin_norm(feature.values)
-
-    trainWriter = HDF5DatasetWriter(
-        (100, window_len, feature.shape[1]), (100,), './train')
-    testWrite = HDF5DatasetWriter(
-        (100, window_len, feature.shape[1]), (100,), './test')
-
-    # 获取label最值
-    label = []
-    for i in range(df_rows - predict_days):
-        label.append(price[i + predict_days] - price[i])
-    label_max = max(label)
-    label_min = min(label)
-
-    # 跳点判定条件
-    df['UpdateTime'] = pd.to_datetime(df.UpdateTime, format='%H:%M:%S')
-    time_delta = pd.to_datetime(
-        '01:00:00', format='%H:%M:%S') - pd.to_datetime('00:00:00', format='%H:%M:%S')
-
-    # 生成数据集
-    sample_window = []
-    for i in range(df_rows - predict_days):
-        sample_window.append(feature_normal[i])
-        if len(sample_window) == window_len:
-            raise_10days = (float(price[i + predict_days] - price[i]
-                                  - label_min) / (label_max - label_min))
-            if i <= train_num:
-                trainWriter.add(sample_window, raise_10days)
-            else:
-                testWrite.add(sample_window, raise_10days)
-            sample_window = sample_window[1:]
-        # 排除跳点
-        if (df['UpdateTime'][i + 1] - df['UpdateTime'][i]) > time_delta:
-            sample_window = []
-            # print("跳点")
-
-    trainWriter.close()
-    testWrite.close()
-
-
-def load_dataset(datafile, predict_days, window_len):
-    df = pd.read_csv(datafile)
-    print('read in succeed')
-    df_rows, df_cols = df.shape
-    feature = df.drop(['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
-    price = df['midPrice']
-
-    train_num = int(df_rows * 0.7)
-    feature_normal = maxmin_norm(feature.values)
-
-    # 获取label最值
-    label = []
-    for i in range(df_rows - predict_days):
-        label.append(price[i + predict_days] - price[i])
-    label_max = max(label)
-    label_min = min(label)
-
-    # 跳点判定条件
-    df['UpdateTime'] = pd.to_datetime(df.UpdateTime, format='%H:%M:%S')
-    time_delta = pd.to_datetime(
-        '01:00:00', format='%H:%M:%S') - pd.to_datetime('00:00:00', format='%H:%M:%S')
-
-    def train_generator(predict_days, window_len):
-        train_sample_window = []
-        for i in range(train_num):
-            print('round:', i)
-            train_sample_window.append(feature_normal[i])
-            if len(train_sample_window) == window_len:
-                raise_10days = (float(price[i + predict_days] - price[i]
-                                      - label_min) / (label_max - label_min))
-                data = np.array(train_sample_window)
-                label = np.array(raise_10days)
-                print(data.shape)
-                print(label.shape)
-                yield data, label
-                train_sample_window = train_sample_window[1:]
-            # 排除跳点
-            if (df['UpdateTime'][i + 1] - df['UpdateTime'][i]) > time_delta:
-                train_sample_window = []
-                # print("jump point")
-
-    def test_generator(predict_days, window_len):
-        test_sample_window = []
-        for i in range(train_num, df_rows - predict_days):
-            test_sample_window.append(feature_normal[i])
-            if len(test_sample_window) == window_len:
-                raise_10days = (float(price[i + predict_days] - price[i]
-                                      - label_min) / (label_max - label_min))
-                yield np.array(test_sample_window), np.array(raise_10days)
-                test_sample_window = test_sample_window[1:]
-            # 排除跳点
-            if (df['UpdateTime'][i + 1] - df['UpdateTime'][i]) > time_delta:
-                test_sample_window = []
-                # print("jump point")
-
-    def train_gen(): return train_generator(predict_days, window_len)
-    def test_gen(): return test_generator(predict_days, window_len)
-
-    output_types = ((tf.float32, tf.float32), (tf.float32))
-    output_shapes = ((window_len, feature.shape[1]), (1))
-    print('output_shape:', output_shapes)
-    train_dataset = tf.data.Dataset.from_generator(
-        train_gen, output_types=output_types, output_shapes=output_shapes)
-    test_dataset = tf.data.Dataset.from_generator(
-        test_gen, output_types=output_types, output_shapes=output_shapes)
-    train_dataset = train_dataset.batch(32, drop_remainder=True)
-    test_dataset = test_dataset.batch(32, drop_remainder=True)
-    return train_dataset, test_dataset
-
-
 class DataGenerator(keras.utils.Sequence):
 
     def __init__(self, datafile, predict_days, window_len, batch_size, dataset):
         self.data = pd.read_csv(datafile)
         count, _ = self.data.shape
         print('count:', count)
+
+        # 获取特征归一化参数
+        total_feature = self.data.drop(
+            ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
+        self.maxcols = total_feature.values.max(axis=0)
+        self.mincols = total_feature.values.min(axis=0)
+        self.meancols = total_feature.values.mean(axis=0)
+        self.stdcols = total_feature.values.std(axis=0)
+
+        # 获取label归一化参数
+        total_price = self.data['midPrice']
+        total_label = []
+        for i in range(self.data.shape[0] - predict_days):
+            total_label.append(
+                total_price[i+predict_days] - total_price[i])
+        self.label_max = max(total_label)
+        self.label_min = min(total_label)
+        self.label_mean = np.array(total_label).mean()
+        self.label_std = np.array(total_label).std()
+
         if dataset == 'train':
             self.df = self.data[:int(0.6 * count)]
             self.begin = 0
@@ -218,7 +48,7 @@ class DataGenerator(keras.utils.Sequence):
 
         self.df_rows, self.df_cols = self.df.shape
 
-        # 获取全部label（最后10个除外）（为当前位置10条之后的涨跌幅）
+        # 获取所选数据集范围内的label（最后10个除外）（为当前位置10条之后的涨跌幅）
         self.price = self.df['midPrice']
         self.label = []
         for i in range(self.df_rows - self.predict_days):
@@ -237,8 +67,6 @@ class DataGenerator(keras.utils.Sequence):
                     ((self.df['UpdateTime'][self.begin+i]-self.df['UpdateTime'][self.begin+i+1]) > time_delta)):
                 self.jump_points.append(i)
                 self.jump_points_num += 1
-                # 去除受此跳点影响的label
-                self.label[i-self.predict_days+1:i+1] = list(np.zeros(self.predict_days))
 
         print('jump_points_num:', self.jump_points_num)
 
@@ -246,14 +74,13 @@ class DataGenerator(keras.utils.Sequence):
         self.num = self.df_rows-self.predict_days-self.window_len + \
             1-self.jump_points_num*(self.window_len+self.predict_days-1)
 
-
         # 归一化labels
         self.label = self.zscore_normalize_label(self.label)
 
         # normalize feature
         self.feature = self.df.drop(
             ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
-        self.feature_normal = zscore_norm(self.feature.values)
+        self.feature_normal = self.zscore_norm_feature(self.feature.values)
         print('num:', self.num)
         print('label:', len(self.label))
 
@@ -305,8 +132,6 @@ class DataGenerator(keras.utils.Sequence):
         return batch_x, batch_y
 
     def maxmin_normalize_label(self, labels):
-        self.label_max = max(self.label)
-        self.label_min = min(self.label)
         labels = [(l-self.label_min)/(self.label_max-self.label_min)
                       for l in labels]
         return labels
@@ -316,14 +141,28 @@ class DataGenerator(keras.utils.Sequence):
         return labels
 
     def zscore_normalize_label(self, labels):
-        self.label_mean = np.array(self.label).mean()
-        self.label_std = np.array(self.label).std()
         labels = [(l - self.label_mean) / self.label_std for l in labels]
         return labels
 
     def zscore_denormalize_label(self, labels):
         labels = [l*self.label_std+self.label_mean for l in labels]
         return labels
+
+    def maxmin_norm_feature(self, array):
+        data_shape = array.shape
+        data_rows, data_cols = data_shape
+        t = np.empty((data_rows, data_cols))
+        for i in range(data_cols):
+            t[:, i] = (array[:, i] - self.mincols[i]) / (self.maxcols[i] - self.mincols[i])
+        return t
+
+    def zscore_norm_feature(self, array):
+        data_shape = array.shape
+        data_rows, data_cols = data_shape
+        t = np.empty((data_rows, data_cols))
+        for i in range(data_cols):
+            t[:, i] = (array[:, i] - self.meancols[i]) / self.stdcols[i]
+        return t
 
     def get_labels(self):
         return self.label
@@ -337,6 +176,26 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         self.data = pd.read_csv(datafile)
         count, _ = self.data.shape
         print('count', count)
+
+        # 获取特征归一化参数
+        total_feature = self.data.drop(
+            ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
+        self.maxcols = total_feature.values.max(axis=0)
+        self.mincols = total_feature.values.min(axis=0)
+        self.meancols = total_feature.values.mean(axis=0)
+        self.stdcols = total_feature.values.std(axis=0)
+
+        # 获取label归一化参数
+        total_price = self.data['midPrice']
+        total_label = []
+        for i in range(self.data.shape[0] - predict_days):
+            total_label.append(
+                total_price[i + predict_days] - total_price[i])
+        self.label_max = max(total_label)
+        self.label_min = min(total_label)
+        self.label_mean = np.array(total_label).mean()
+        self.label_std = np.array(total_label).std()
+
         if dataset == 'train':
             self.df = self.data[:int(0.6 * count)]
             self.begin = 0
@@ -369,7 +228,7 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         # normalize feature
         self.feature = self.df.drop(
             ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
-        self.feature_normal = zscore_norm(self.feature.values)
+        self.feature_normal = self.zscore_norm_feature(self.feature.values)
         print('num:', self.num)
         print('label:', len(self.label))
 
@@ -399,8 +258,6 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         return batch_x, batch_y
 
     def maxmin_normalize_label(self, labels):
-        self.label_max = max(self.label)
-        self.label_min = min(self.label)
         labels = [(l-self.label_min)/(self.label_max-self.label_min)
                       for l in labels]
         return labels
@@ -410,8 +267,6 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         return labels
 
     def zscore_normalize_label(self, labels):
-        self.label_mean = np.array(self.label).mean()
-        self.label_std = np.array(self.label).std()
         labels = [(l - self.label_mean) / self.label_std for l in labels]
         return labels
 
@@ -419,6 +274,21 @@ class DataCertainIntervalGenerator(keras.utils.Sequence):
         labels = [l*self.label_std+self.label_mean for l in labels]
         return labels
 
+    def maxmin_norm_feature(self, array):
+        data_shape = array.shape
+        data_rows, data_cols = data_shape
+        t = np.empty((data_rows, data_cols))
+        for i in range(data_cols):
+            t[:, i] = (array[:, i] - self.mincols[i]) / (self.maxcols[i] - self.mincols[i])
+        return t
+
+    def zscore_norm_feature(self, array):
+        data_shape = array.shape
+        data_rows, data_cols = data_shape
+        t = np.empty((data_rows, data_cols))
+        for i in range(data_cols):
+            t[:, i] = (array[:, i] - self.meancols[i]) / self.stdcols[i]
+        return t
 
 class IdentityDataGenerator(keras.utils.Sequence):
 
@@ -426,6 +296,15 @@ class IdentityDataGenerator(keras.utils.Sequence):
         self.data = pd.read_csv(datafile)
         count, _ = self.data.shape
         print('count:', count)
+
+        # 获取特征归一化参数
+        total_feature = self.data.drop(
+            ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
+        self.maxcols = total_feature.values.max(axis=0)
+        self.mincols = total_feature.values.min(axis=0)
+        self.meancols = total_feature.values.mean(axis=0)
+        self.stdcols = total_feature.values.std(axis=0)
+
         if dataset == 'train':
             self.df = self.data[:int(0.6 * count)]
         elif dataset == 'test':
@@ -441,7 +320,7 @@ class IdentityDataGenerator(keras.utils.Sequence):
         # normalize feature
         self.feature = self.df.drop(
             ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
-        self.feature_normal = maxmin_norm(self.feature.values)
+        self.feature_normal = self.zscore_norm_feature(self.feature.values)
         print('num:', self.num)
 
     def __len__(self):
@@ -461,12 +340,37 @@ class IdentityDataGenerator(keras.utils.Sequence):
     def get_len(self):
         return self.df.shape[0]
 
+    def maxmin_norm_feature(self, array):
+        data_shape = array.shape
+        data_rows, data_cols = data_shape
+        t = np.empty((data_rows, data_cols))
+        for i in range(data_cols):
+            t[:, i] = (array[:, i] - self.mincols[i]) / (self.maxcols[i] - self.mincols[i])
+        return t
+
+    def zscore_norm_feature(self, array):
+        data_shape = array.shape
+        data_rows, data_cols = data_shape
+        t = np.empty((data_rows, data_cols))
+        for i in range(data_cols):
+            t[:, i] = (array[:, i] - self.meancols[i]) / self.stdcols[i]
+        return t
+
 
 class IdentityDataReader(keras.utils.Sequence):
     def __init__(self, datafile, dataset):
         self.data = pd.read_csv(datafile)
         count, _ = self.data.shape
         print('count:', count)
+
+        # 获取特征归一化参数
+        total_feature = self.data.drop(
+            ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
+        self.maxcols = total_feature.values.max(axis=0)
+        self.mincols = total_feature.values.min(axis=0)
+        self.meancols = total_feature.values.mean(axis=0)
+        self.stdcols = total_feature.values.std(axis=0)
+
         if dataset == 'train':
             self.df = self.data[:int(0.6 * count)]
         elif dataset == 'test':
@@ -481,10 +385,25 @@ class IdentityDataReader(keras.utils.Sequence):
         # normalize feature
         self.feature = self.df.drop(
             ['midPrice', 'UpdateTime', 'UpdateMillisec'], axis=1)
-        self.feature_normal = maxmin_norm(self.feature.values)
+        self.feature_normal = self.zscore_norm_feature(self.feature.values)
 
     def get_data(self):
         return self.feature_normal
+
+    def maxmin_norm_feature(self, array):
+        data_shape = array.shape
+        data_rows, data_cols = data_shape
+        t = np.empty((data_rows, data_cols))
+        for i in range(data_cols):
+            t[:, i] = (array[:, i] - self.mincols[i]) / (self.maxcols[i] - self.mincols[i])
+        return t
+
+    def zscore_norm_feature(self, array):
+        data_shape = array.shape
+        data_rows, data_cols = data_shape
+        t = np.empty((data_rows, data_cols))
+        for i in range(data_cols):
+            t[:, i] = (array[:, i] - self.meancols[i]) / self.stdcols[i]
 
 
 if __name__ == "__main__":
