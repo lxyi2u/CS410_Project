@@ -63,6 +63,9 @@ class DataGenerator(keras.utils.Sequence):
         self.batch_num = sum(self.set_batch_num)
         print('batch_num', self.batch_num)
 
+        # 存放与__getitem__使用顺序相同顺序的true_labels
+        self.true_labels = []
+
     def __len__(self):
         return self.batch_num
 
@@ -92,6 +95,7 @@ class DataGenerator(keras.utils.Sequence):
             index = random.choice(range(left_boundary, right_boundary+1))
             batch_x.append(self.features[set_index][index:index+self.window_len])
             batch_y.append(self.prices[set_index][index+self.window_len-1+self.predict_days]-self.prices[set_index][index+self.window_len-1])
+            self.true_labels.append(self.prices[set_index][index+self.window_len-1+self.predict_days]-self.prices[set_index][index+self.window_len-1])
         batch_x = np.array(batch_x)
         batch_y = np.array(batch_y)
 
@@ -105,3 +109,6 @@ class DataGenerator(keras.utils.Sequence):
         for i in range(data_cols):
             t[:, i] = (array[:, i] - self.meancols[i]) / self.stdcols[i]
         return t
+
+    def get_true_labels(self):
+        return self.true_labels
